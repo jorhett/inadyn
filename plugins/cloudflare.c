@@ -33,14 +33,14 @@ static const char *CLOUDFLARE_ZONE_ID_REQUEST = "GET " API_URL "/zones?name=%s H
 	"Accept: */*\r\n"				\
 	"Authorization: Bearer %s\r\n"	\
 	"Content-Type: application/json\r\n\r\n";
-	
-static const char *CLOUDFLARE_HOSTNAME_ID_REQUEST	= "GET " API_URL "/zones/%s/dns_records?type=A&name=%s HTTP/1.0\r\n"	\
+
+static const char *CLOUDFLARE_HOSTNAME_ID_REQUEST	= "GET " API_URL "/zones/%s/dns_records?type=%s&name=%s HTTP/1.0\r\n"	\
 	"Host: " API_HOST "\r\n"		\
 	"User-Agent: %s\r\n"			\
 	"Accept: */*\r\n"				\
 	"Authorization: Bearer %s\r\n"	\
 	"Content-Type: application/json\r\n\r\n";
-	
+
 static const char *CLOUDFLARE_HOSTNAME_UPDATE_REQUEST	= "PUT " API_URL "/zones/%s/dns_records/%s HTTP/1.0\r\n"	\
 	"Host: " API_HOST "\r\n"		\
 	"User-Agent: %s\r\n"			\
@@ -49,8 +49,8 @@ static const char *CLOUDFLARE_HOSTNAME_UPDATE_REQUEST	= "PUT " API_URL "/zones/%
 	"Content-Type: application/json\r\n" \
 	"Content-Length: %zd\r\n\r\n" \
 	"%s";
-	
-static const char *CLOUDFLARE_UPDATE_JSON_FORMAT = "{\"type\":\"A\",\"name\":\"%s\",\"content\":\"%s\"}";
+
+static const char *CLOUDFLARE_UPDATE_JSON_FORMAT = "{\"type\":\"%s\",\"name\":\"%s\",\"content\":\"%s\"}";
 
 static const char *KEY_SUCCESS = "success";
 
@@ -115,15 +115,15 @@ static int check_success(const char *json, const jsmntok_t tokens[], const int n
 	for (int i = 1; i < num_tokens; i++) {
 		if (jsoneq(json, tokens + i, KEY_SUCCESS) == 0) {
 			int true;
-			
+
 			if (i < num_tokens - 1 && json_bool(json, tokens + i + 1, &true) == 0) {
 				return true ? 0 : -1;
 			}
-				
+
 			return -1;
 		}
 	}
-	
+
 	return -1;
 }
 
@@ -131,9 +131,9 @@ static int check_success_only(const char *json)
 {
 	int num_tokens;
 	jsmntok_t *tokens;
-	
-	num_tokens = parse_json(json, &tokens);	
-	
+
+	num_tokens = parse_json(json, &tokens);
+
 	if (num_tokens == -1)
 		return -1;
 
@@ -147,22 +147,22 @@ static int get_result_value(const char *json, const char *key, jsmntok_t *out_re
 {
 	int num_tokens;
 	jsmntok_t *tokens;
-	
+
 	num_tokens = parse_json(json, &tokens);
-	
+
 	if (num_tokens < 0)
 		return -1;
-	
+
 	if (tokens[0].type != JSMN_OBJECT) {
 		logit(LOG_ERR, "JSON response contained no objects.");
 		goto cleanup;
 	}
-	
+
 	if (check_success(json, tokens, num_tokens) == -1) {
 		logit(LOG_ERR, "Request was unsuccessful.");
 		goto cleanup;
 	}
-	
+
 	for (int i = 1; i < num_tokens; i++) {
 		if (jsoneq(json, tokens + i, key) == 0) {
 			if (i < num_tokens - 1) {
@@ -172,7 +172,7 @@ static int get_result_value(const char *json, const char *key, jsmntok_t *out_re
 			}
 		}
 	}
-	
+
 	logit(LOG_ERR, "Could not find key '%s'.", key);
 
 cleanup:
@@ -184,16 +184,21 @@ static int json_copy_value(char *dest, size_t dest_size, const char *json, const
 {
 	if (token->type != JSMN_STRING)
 		return -1;
-	
+
 	size_t length = token->end - token->start;
-	
+
 	if (length > dest_size - 1)
 		return -2;
-	
+
 	strncpy(dest, json + token->start, length);
 	dest[length] = '\0';
-	
+
 	return 0;
+}
+
+static int get_address_type(char* address)
+{
+	// FOO
 }
 
 static int get_id(char *dest, size_t dest_size, const ddns_info_t *info, char *request, size_t request_len)
@@ -201,7 +206,7 @@ static int get_id(char *dest, size_t dest_size, const ddns_info_t *info, char *r
 	int rc = RC_OK;
 
 	const size_t RESP_BUFFER_SIZE = 4096;
-	
+
 	http_t        client;
 	http_trans_t  trans;
 
@@ -305,13 +310,14 @@ static int setup(ddns_t *ctx, ddns_info_t *info, ddns_alias_t *hostname)
 			goto cleanup;
 		}
 	}
-	
+
 	logit(LOG_DEBUG, "Cloudflare Zone: '%s' Id: %s", zone_name, data.zone_id);
 
 	{
 		size_t request_len = snprintf(request_buf, REQUEST_BUFFER_SIZE,
 			CLOUDFLARE_HOSTNAME_ID_REQUEST,
 			data.zone_id,
+			HACK.type,
 			hostname->name,
 			info->user_agent,
 			info->creds.password);
@@ -325,7 +331,7 @@ static int setup(ddns_t *ctx, ddns_info_t *info, ddns_alias_t *hostname)
 		rc = get_id(data.hostname_id, MAX_ID, info, request_buf, request_len);
 
 		if (rc != RC_OK) {
-			logit(LOG_ERR, "Hostname '%s' not found.", hostname->name);
+			logit(LOG_ERR, "Hostname '%s' not found. Host must already exist in Cloudflare zone.", hostname->name);
 			rc = RC_DDNS_RSP_NOHOST;
 			goto cleanup;
 		}

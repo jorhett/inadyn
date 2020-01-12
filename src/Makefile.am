@@ -5,7 +5,7 @@ AM_CPPFLAGS     += -D_GNU_SOURCE -D_BSD_SOURCE -D_DEFAULT_SOURCE
 AM_CFLAGS        = -W -Wall -Wextra -Wno-unused-parameter -std=gnu99
 
 sbin_PROGRAMS	 = inadyn
-inadyn_SOURCES	 = main.c	ddns.c		cache.c		\
+inadyn_SOURCES	 = main.c	ddns.c	address.c	cache.c		\
 		   error.c	conf.c		os.c		\
 		   http.c	plugin.c	tcp.c		\
 		   		sha1.c		base64.c	\
